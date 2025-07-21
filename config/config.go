@@ -12,6 +12,11 @@ import (
 	"github.com/fa7ad/esq/internal/validation"
 )
 
+const (
+	DefaultSize = 100
+	AppName     = "esq"
+)
+
 func InitConfig(cfgFile string, appName string, args *types.CliArgs) error {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)

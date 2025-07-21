@@ -1,96 +1,122 @@
 package esclient
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
-	// "github.com/olivere/elastic/v7" // Uncomment and use your actual ES client library
-)
+	"strings"
 
-type ElasticsearchClient interface {
-	Search(index, kql, dsl, lucene, queryFile string, size int) (interface{}, error)
-}
+	"github.com/elastic/go-elasticsearch/v9"
+)
 
 type esClient struct {
 	node     string
 	apiKey   string
 	username string
 	password string
-	// client   *elastic.Client // Your actual ES client instance
+	client   *elasticsearch.Client
 }
 
-func NewElasticsearchClient(node, apiKey, username, password string) (ElasticsearchClient, error) {
-	// Initialize your actual Elasticsearch client here.
-	// Example with olivere/elastic:
-	// client, err := elastic.NewClient(
-	// 	elastic.SetURL(node),
-	// 	elastic.SetBasicAuth(username, password),
-	// 	elastic.SetAPIKey(apiKey),
-	// 	elastic.SetSniff(false),
-	// )
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
-	// }
+func NewElasticsearchClient(node, apiKey, username, password string) (*esClient, error) {
+	if node == "" {
+		return nil, fmt.Errorf("elasticsearch node URL must be provided")
+	}
+	cfg := elasticsearch.Config{
+		Addresses: []string{
+			node,
+		},
+	}
+
+	if apiKey != "" {
+		cfg.APIKey = apiKey
+	} else if username != "" && password != "" {
+		cfg.Username = username
+		cfg.Password = password
+	}
+
+	client, err := elasticsearch.NewClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
+	}
 
 	return &esClient{
 		node:     node,
 		apiKey:   apiKey,
 		username: username,
 		password: password,
-		// client:   client,
+		client:   client,
 	}, nil
 }
 
-func (c *esClient) Search(index, kql, dsl, lucene, queryFile string, size int) (interface{}, error) {
-	fmt.Printf("  (Internal) Simulating search on node '%s', index '%s'\n", c.node, index)
-
-	var query string
+// buildQueryBody creates an io.Reader for the search request body.
+// It builds the query based on the first available query type in the order: KQL, DSL, Lucene, Query File.
+func buildQueryBody(kql, dsl, lucene, queryFile string) (io.Reader, error) {
 	if kql != "" {
-		query = fmt.Sprintf("KQL: %s", kql)
-	} else if dsl != "" {
-		query = fmt.Sprintf("DSL: %s", dsl)
-	} else if lucene != "" {
-		query = fmt.Sprintf("Lucene: %s", lucene)
-	} else if queryFile != "" {
-		fileContent, err := os.ReadFile(queryFile)
+		// For KQL, adding analyze_wildcard is a good practice.
+		query := fmt.Sprintf(
+			`{"query": {"query_string": {"query": %q, "analyze_wildcard": true}}}`,
+			kql,
+		)
+		return strings.NewReader(query), nil
+	}
+	if dsl != "" {
+		// DSL is used as the raw query body
+		return strings.NewReader(dsl), nil
+	}
+	if lucene != "" {
+		// For Lucene, setting a default operator is common.
+		query := fmt.Sprintf(
+			`{"query": {"query_string": {"query": %q, "default_operator": "AND"}}}`,
+			lucene,
+		)
+		return strings.NewReader(query), nil
+	}
+	if queryFile != "" {
+		// Read query from file
+		content, err := os.ReadFile(queryFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read query file '%s': %w", queryFile, err)
 		}
-		query = fmt.Sprintf("Query File Content: %s", string(fileContent))
-	} else {
-		return nil, fmt.Errorf("no query type specified")
+		return strings.NewReader(string(content)), nil
 	}
 
-	fmt.Printf("  (Internal) Query: %s, Size: %d\n", query, size)
+	return nil, fmt.Errorf("no query provided: please use --kql, --dsl, --lucene, or --query-file")
+}
 
-	// Here you would use your actual ES client to perform the search.
-	// searchResult, err := c.client.Search().Index(index).Query(...).Size(size).Do(context.Background())
-	// if err != nil { return nil, fmt.Errorf("elasticsearch search failed: %w", err) }
-	// return searchResult, nil
-
-	dummyResults := map[string]interface{}{
-		"took":      10,
-		"timed_out": false,
-		"hits": map[string]interface{}{
-			"total": map[string]interface{}{
-				"value":    1,
-				"relation": "eq",
-			},
-			"max_score": 1.0,
-			"hits": []map[string]interface{}{
-				{
-					"_index": index,
-					"_type":  "_doc",
-					"_id":    "1",
-					"_score": 1.0,
-					"_source": map[string]interface{}{
-						"message": fmt.Sprintf("This is a dummy result for query: %s", query),
-						"status":  "success",
-						"user":    "testuser",
-					},
-				},
-			},
-		},
+// Search executes a search query against a specified index.
+func (c *esClient) Search(index, kql, dsl, lucene, queryFile string, size int) (map[string]interface{}, error) {
+	// Build the query body using the helper function
+	queryBody, err := buildQueryBody(kql, dsl, lucene, queryFile)
+	if err != nil {
+		return nil, err
 	}
 
-	return dummyResults, nil
+	// Execute the search
+	res, err := c.client.Search(
+		c.client.Search.WithIndex(index),
+		c.client.Search.WithBody(queryBody),
+		c.client.Search.WithSize(size),
+		c.client.Search.WithTrackTotalHits(true),
+		c.client.Search.WithPretty(),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("elasticsearch search failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	// Check for Elasticsearch-specific errors
+	if res.IsError() {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("search error: [%s] %s", res.Status(), string(bodyBytes))
+	}
+
+	// Decode the JSON response into a map
+	var r map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		return nil, fmt.Errorf("failed to parse search response body: %w", err)
+	}
+
+	return r, nil
 }

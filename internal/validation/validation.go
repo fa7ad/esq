@@ -10,28 +10,26 @@ import (
 
 func ValidateCliArgs(args types.CliArgs) error {
 	querySources := []string{}
-	if args.KQL != "" {
-		querySources = append(querySources, "--kql")
-	}
-	if args.DSL != "" {
-		querySources = append(querySources, "--dsl")
-	}
-	if args.Lucene != "" {
-		querySources = append(querySources, "--lucene")
-	}
-	if args.QueryFile != "" {
-		querySources = append(querySources, "--query-file")
+	for i, source := range []bool{
+		args.KQL != "",
+		args.DSL != "",
+		args.Lucene != "",
+		args.QueryFile != "",
+	} {
+		if source {
+			querySources = append(querySources, []string{"kql", "dsl", "lucene", "query-file"}[i])
+		}
 	}
 
 	if len(querySources) == 0 {
-		return fmt.Errorf("error: One of --kql, --dsl, --lucene, or --query-file must be provided.")
+		return fmt.Errorf("error: One of --kql, --dsl, --lucene, or --query-file must be provided")
 	}
 	if len(querySources) > 1 {
-		return fmt.Errorf("error: Only one query source (%s) can be used at a time.", strings.Join(querySources, ", "))
+		return fmt.Errorf("error: Only one query source (%s) can be used at a time", strings.Join(querySources, ", "))
 	}
 
-	if args.Auth.Password != "" && args.Auth.Username == "" {
-		return fmt.Errorf("error: --username must be provided if --password is used.")
+	if args.Password != "" && args.Username == "" {
+		return fmt.Errorf("error: --username must be provided if --password is used")
 	}
 
 	if args.QueryFile != "" {
@@ -42,7 +40,7 @@ func ValidateCliArgs(args types.CliArgs) error {
 		}
 	}
 
-	validOutputs := map[string]bool{"json": true, "normal": true}
+	validOutputs := map[string]bool{"json": true, "text": true}
 	if _, ok := validOutputs[args.Output]; !ok {
 		return fmt.Errorf("error: Invalid output format '%s'. Must be one of: %s", args.Output, strings.Join(getKeys(validOutputs), ", "))
 	}

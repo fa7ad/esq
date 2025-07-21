@@ -21,5 +21,5 @@ type CliArgs struct {
 	Output     string
 	OutputFile string
 	JqPath     string
-	*AuthOptions
+	AuthOptions
 }

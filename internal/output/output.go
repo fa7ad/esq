@@ -5,42 +5,82 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/PaesslerAG/jsonpath"
+	"github.com/itchyny/gojq"
 )
 
-func ProcessAndOutputResults(results interface{}, outputFormat, outputFile, jsonPathExpr string) error {
-	var formattedOutput []byte
-	var err error
+// ProcessAndOutputResults processes the Elasticsearch results, applies optional jq filtering,
+// and writes to stdout or to the specified output file.
+func ProcessAndOutputResults(results any, format string, outputFile string, jqExpr string) error {
+	rawJson, err := json.Marshal(results)
+	if err != nil {
+		return fmt.Errorf("failed to marshal results to JSON: %w", err)
+	}
 
-	switch outputFormat {
-	case "json":
-		if jsonPathExpr != "" {
-			v, err := jsonpath.JsonPathLookup(results, jsonPathExpr)
-			if err != nil {
-				return fmt.Errorf("failed to apply JSONPath '%s': %w", jsonPathExpr, err)
-			}
-			formattedOutput, err = json.MarshalIndent(v, "", "  ")
-		} else {
-			formattedOutput, err = json.MarshalIndent(results, "", "  ")
-		}
+	var parsed any
+	if err := json.Unmarshal(rawJson, &parsed); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON for jq processing: %w", err)
+	}
+
+	// Apply jq expression if provided
+	if jqExpr != "" {
+		parsed, err = applyJQ(parsed, jqExpr)
 		if err != nil {
-			return fmt.Errorf("failed to marshal results to JSON: %w", err)
+			return fmt.Errorf("failed to apply jq: %w", err)
 		}
-	case "normal":
-		formattedOutput = []byte(fmt.Sprintf("Raw results (normal output not fully implemented):\n%v", results))
+	}
+
+	var output []byte
+
+	switch format {
+	case "json", "":
+		output, err = json.MarshalIndent(parsed, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal final output: %w", err)
+		}
+
+	case "text":
+		output = fmt.Append(nil, parsed)
+
 	default:
-		return fmt.Errorf("unsupported output format: %s", outputFormat)
+		return fmt.Errorf("unsupported output format: %s", format)
 	}
 
 	if outputFile != "" {
-		err = os.WriteFile(outputFile, formattedOutput, 0644)
+		err := os.WriteFile(outputFile, output, 0644)
 		if err != nil {
-			return fmt.Errorf("failed to write output to file '%s': %w", outputFile, err)
+			return fmt.Errorf("failed to write output to file: %w", err)
 		}
-		fmt.Printf("Output written to %s\n", outputFile)
 	} else {
-		fmt.Println(string(formattedOutput))
+		fmt.Println(string(output))
 	}
 
 	return nil
+}
+
+// applyJQ runs a jq expression against the given input data using gojq.
+func applyJQ(input any, jqExpr string) (any, error) {
+	query, err := gojq.Parse(jqExpr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid jq expression: %w", err)
+	}
+
+	iter := query.Run(input)
+
+	var results []interface{}
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, isErr := v.(error); isErr {
+			return nil, err
+		}
+		results = append(results, v)
+	}
+
+	// Return simplified structure if only one result
+	if len(results) == 1 {
+		return results[0], nil
+	}
+	return results, nil
 }
