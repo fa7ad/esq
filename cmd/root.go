@@ -3,20 +3,27 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/fa7ad/esq/config"
 	"github.com/fa7ad/esq/internal/esclient"
 	"github.com/fa7ad/esq/internal/options"
+	"github.com/fa7ad/esq/internal/validation"
+)
+
+const (
+	DefaultSize = 100
+	AppName     = "esq"
 )
 
 var cfgFile string
 var cliArgs options.CliArgs
 
 var rootCmd = &cobra.Command{
-	Use:   config.AppName,
+	Use:   AppName,
 	Short: "A CLI tool to query Elasticsearch.",
 	Long: fmt.Sprintf(`%[1]s - A CLI tool to query Elasticsearch.
 
@@ -44,12 +51,12 @@ Examples:
 
 	# Apply a jq expression to output
 	%[1]s -n http://localhost:9200 -i my-logs --kql "foo:bar" -o json --jq ".hits.hits | map({id: ._id, source: ._source})"
-`, config.AppName),
+`, AppName),
 	Version:       "0.1.0",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		return config.InitConfig(cfgFile, config.AppName, &cliArgs)
+		return InitConfig(cfgFile, AppName, &cliArgs)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		esClient, err := esclient.NewElasticsearchClient(cliArgs.AuthOptions, cliArgs.ElasticOptions)
@@ -79,16 +86,18 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/.%s.yaml)", config.AppName))
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/.%s.yaml)", AppName))
 
 	rootCmd.PersistentFlags().StringVar(&cliArgs.KQL, "kql", "", "Kibana Query Language (KQL) query string.")
 	rootCmd.PersistentFlags().StringVar(&cliArgs.DSL, "dsl", "", "Elasticsearch Query DSL JSON string. Must be valid JSON string.")
 	rootCmd.PersistentFlags().StringVar(&cliArgs.Lucene, "lucene", "", "Lucene query string (alternative to KQL/DSL).")
 	rootCmd.PersistentFlags().StringVarP(&cliArgs.QueryFile, "query-file", "f", "", "Path to a file containing the Elasticsearch Query DSL (JSON) to use.")
+	rootCmd.PersistentFlags().StringVar(&cliArgs.From, "from", "", "Start time (ISO8601 or ES-relative like 'now-1d')")
+	rootCmd.PersistentFlags().StringVar(&cliArgs.To, "to", "", "End time (ISO8601 or ES-relative like 'now')")
 
 	rootCmd.PersistentFlags().StringVarP(&cliArgs.Node, "node", "n", "", "Elasticsearch node URL (e.g., http://localhost:9200)")
 	rootCmd.PersistentFlags().StringVarP(&cliArgs.Index, "index", "i", "", "Elasticsearch index pattern (e.g., a2x-prod1*)")
-	rootCmd.PersistentFlags().IntVarP(&cliArgs.Size, "size", "s", config.DefaultSize, fmt.Sprintf("Number of results to return (default: %d).", config.DefaultSize))
+	rootCmd.PersistentFlags().IntVarP(&cliArgs.Size, "size", "s", DefaultSize, fmt.Sprintf("Number of results to return (default: %d).", DefaultSize))
 
 	rootCmd.PersistentFlags().StringVar(&cliArgs.APIKey, "api-key", "", "Elasticsearch API Key for authentication (base64 encoded string or id:api_key object).")
 	rootCmd.PersistentFlags().StringVar(&cliArgs.Username, "username", "", "Username for basic authentication.")
@@ -101,17 +110,38 @@ func init() {
 	rootCmd.MarkPersistentFlagRequired("node")
 	rootCmd.MarkPersistentFlagRequired("index")
 
-	viper.BindPFlag("node", rootCmd.PersistentFlags().Lookup("node"))
-	viper.BindPFlag("index", rootCmd.PersistentFlags().Lookup("index"))
-	viper.BindPFlag("kql", rootCmd.PersistentFlags().Lookup("kql"))
-	viper.BindPFlag("dsl", rootCmd.PersistentFlags().Lookup("dsl"))
-	viper.BindPFlag("lucene", rootCmd.PersistentFlags().Lookup("lucene"))
-	viper.BindPFlag("query-file", rootCmd.PersistentFlags().Lookup("query-file"))
-	viper.BindPFlag("size", rootCmd.PersistentFlags().Lookup("size"))
-	viper.BindPFlag("api-key", rootCmd.PersistentFlags().Lookup("api-key"))
-	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
-	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
-	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
-	viper.BindPFlag("output-file", rootCmd.PersistentFlags().Lookup("output-file"))
-	viper.BindPFlag("jq", rootCmd.PersistentFlags().Lookup("jq"))
+	// Bind all persistent flags to viper automatically
+	rootCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		_ = viper.BindPFlag(f.Name, f)
+	})
+
+}
+
+func InitConfig(cfgFile string, appName string, args *options.CliArgs) error {
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+	} else {
+		home, err := os.UserHomeDir()
+		cobra.CheckErr(err)
+
+		viper.AddConfigPath(home)
+		viper.SetConfigName("." + appName)
+		viper.SetConfigType("yaml")
+	}
+
+	viper.SetEnvPrefix(strings.ToUpper(appName))
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return fmt.Errorf("error reading config file: %w", err)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Using config file: %s\n", viper.ConfigFileUsed())
+	}
+	if err := viper.Unmarshal(args); err != nil {
+		return fmt.Errorf("failed to unmarshal configuration: %w", err)
+	}
+
+	return validation.ValidateCliArgs(*args)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fa7ad/esq/internal/options"
 	"github.com/itchyny/gojq"
@@ -64,6 +65,17 @@ func ValidateQueryOptions(queryOptions options.QueryOptions) error {
 
 	if (queryOptions.KQL != "" && queryOptions.DSL != "") || (queryOptions.KQL != "" && queryOptions.Lucene != "") || (queryOptions.DSL != "" && queryOptions.Lucene != "") {
 		return fmt.Errorf("only one of --kql, --dsl, or --lucene can be provided at a time")
+	}
+
+	if queryOptions.From != "" && !strings.HasPrefix(queryOptions.From, "now") {
+		if _, err := time.Parse(time.RFC3339, queryOptions.From); err != nil {
+			return fmt.Errorf("invalid --from timestamp: %v", err)
+		}
+	}
+	if queryOptions.To != "" && !strings.HasPrefix(queryOptions.To, "now") {
+		if _, err := time.Parse(time.RFC3339, queryOptions.To); err != nil {
+			return fmt.Errorf("invalid --to timestamp: %v", err)
+		}
 	}
 
 	return nil
