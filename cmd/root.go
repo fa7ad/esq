@@ -9,12 +9,11 @@ import (
 
 	"github.com/fa7ad/esq/config"
 	"github.com/fa7ad/esq/internal/esclient"
-	"github.com/fa7ad/esq/internal/output"
-	"github.com/fa7ad/esq/internal/types"
+	"github.com/fa7ad/esq/internal/options"
 )
 
 var cfgFile string
-var cliArgs types.CliArgs
+var cliArgs options.CliArgs
 
 var rootCmd = &cobra.Command{
 	Use:   config.AppName,
@@ -53,19 +52,19 @@ Examples:
 		return config.InitConfig(cfgFile, config.AppName, &cliArgs)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		esClient, err := esclient.NewElasticsearchClient(cliArgs.Node, cliArgs.APIKey, cliArgs.Username, cliArgs.Password)
+		esClient, err := esclient.NewElasticsearchClient(cliArgs.AuthOptions, cliArgs.ElasticOptions)
 		if err != nil {
 			return fmt.Errorf("failed to create ES client: %w", err)
 		}
 
-		results, err := esClient.Search(cliArgs.Index, cliArgs.KQL, cliArgs.DSL, cliArgs.Lucene, cliArgs.QueryFile, cliArgs.Size)
+		results, err := esClient.Search(cliArgs.ElasticOptions)
 		if err != nil {
 			return fmt.Errorf("failed to execute search: %w", err)
 		}
 
-		err = output.ProcessAndOutputResults(results, cliArgs.Output, cliArgs.OutputFile, cliArgs.JqPath)
+		err = cliArgs.OutputResults(results)
 		if err != nil {
-			return fmt.Errorf("failed to process and output results: %w", err)
+			return err
 		}
 
 		return nil

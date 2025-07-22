@@ -4,101 +4,50 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"strings"
 
 	"github.com/elastic/go-elasticsearch/v9"
+	"github.com/fa7ad/esq/internal/options"
 )
 
 type esClient struct {
-	node     string
-	apiKey   string
-	username string
-	password string
-	client   *elasticsearch.Client
+	client *elasticsearch.Client
 }
 
-func NewElasticsearchClient(node, apiKey, username, password string) (*esClient, error) {
-	if node == "" {
-		return nil, fmt.Errorf("elasticsearch node URL must be provided")
-	}
+func NewElasticsearchClient(authOpts options.AuthOptions, opts options.ElasticOptions) (*esClient, error) {
 	cfg := elasticsearch.Config{
-		Addresses: []string{
-			node,
-		},
+		Addresses: []string{opts.Node},
 	}
 
-	if apiKey != "" {
-		cfg.APIKey = apiKey
-	} else if username != "" && password != "" {
-		cfg.Username = username
-		cfg.Password = password
-	}
+	authOpts.UpdateConfig(&cfg)
 
 	client, err := elasticsearch.NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 
-	return &esClient{
-		node:     node,
-		apiKey:   apiKey,
-		username: username,
-		password: password,
-		client:   client,
-	}, nil
-}
-
-// buildQueryBody creates an io.Reader for the search request body.
-// It builds the query based on the first available query type in the order: KQL, DSL, Lucene, Query File.
-func buildQueryBody(kql, dsl, lucene, queryFile string) (io.Reader, error) {
-	if kql != "" {
-		// For KQL, adding analyze_wildcard is a good practice.
-		query := fmt.Sprintf(
-			`{"query": {"query_string": {"query": %q, "analyze_wildcard": true}}}`,
-			kql,
-		)
-		return strings.NewReader(query), nil
-	}
-	if dsl != "" {
-		// DSL is used as the raw query body
-		return strings.NewReader(dsl), nil
-	}
-	if lucene != "" {
-		// For Lucene, setting a default operator is common.
-		query := fmt.Sprintf(
-			`{"query": {"query_string": {"query": %q, "default_operator": "AND"}}}`,
-			lucene,
-		)
-		return strings.NewReader(query), nil
-	}
-	if queryFile != "" {
-		// Read query from file
-		content, err := os.ReadFile(queryFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read query file '%s': %w", queryFile, err)
-		}
-		return strings.NewReader(string(content)), nil
-	}
-
-	return nil, fmt.Errorf("no query provided: please use --kql, --dsl, --lucene, or --query-file")
+	return &esClient{client}, nil
 }
 
 // Search executes a search query against a specified index.
-func (c *esClient) Search(index, kql, dsl, lucene, queryFile string, size int) (map[string]interface{}, error) {
-	// Build the query body using the helper function
-	queryBody, err := buildQueryBody(kql, dsl, lucene, queryFile)
+func (c *esClient) Search(esOpts options.ElasticOptions) (map[string]any, error) {
+	queryBody, err := esOpts.ToQueryBody()
 	if err != nil {
 		return nil, err
 	}
 
 	// Execute the search
 	res, err := c.client.Search(
-		c.client.Search.WithIndex(index),
+		c.client.Search.WithIndex(esOpts.Index),
 		c.client.Search.WithBody(queryBody),
-		c.client.Search.WithSize(size),
+		c.client.Search.WithSize(esOpts.Size),
 		c.client.Search.WithTrackTotalHits(true),
 		c.client.Search.WithPretty(),
+		c.client.Search.WithFilterPath(
+			"hits.hits",
+			"took",
+			"timed_out",
+			"_shards",
+		),
 	)
 
 	if err != nil {
@@ -113,9 +62,15 @@ func (c *esClient) Search(index, kql, dsl, lucene, queryFile string, size int) (
 	}
 
 	// Decode the JSON response into a map
-	var r map[string]interface{}
+	var r map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		return nil, fmt.Errorf("failed to parse search response body: %w", err)
+	}
+
+	if hits, found := r["hits"].(map[string]any); found {
+		if hitsArray, ok := hits["hits"].([]any); ok {
+			r["hits"] = hitsArray // Replace "hits" with the array of hits
+		}
 	}
 
 	return r, nil

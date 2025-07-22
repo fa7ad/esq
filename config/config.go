@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/fa7ad/esq/internal/types"
+	"github.com/fa7ad/esq/internal/options"
 	"github.com/fa7ad/esq/internal/validation"
 )
 
@@ -17,7 +17,7 @@ const (
 	AppName     = "esq"
 )
 
-func InitConfig(cfgFile string, appName string, args *types.CliArgs) error {
+func InitConfig(cfgFile string, appName string, args *options.CliArgs) error {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
