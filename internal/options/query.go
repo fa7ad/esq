@@ -21,16 +21,14 @@ type QueryOptions struct {
 	Size int
 }
 
-type anyMap = map[string]any
+type JSONObject = map[string]any
 
 func (q *QueryOptions) normalize() (string, error) {
-	queryBody := anyMap{
-		"query": anyMap{},
+	queryBody := JSONObject{
+		"query": JSONObject{},
 	}
-	var err error
 
 	switch {
-
 	case q.QueryFile != "":
 		data, err := os.ReadFile(q.QueryFile)
 		if err != nil {
@@ -39,52 +37,53 @@ func (q *QueryOptions) normalize() (string, error) {
 		q.DSL = strings.TrimSpace(string(data))
 		fallthrough
 	case q.DSL != "":
-		queryBody = anyMap{}
-		if err = json.Unmarshal([]byte(q.DSL), &queryBody); err != nil {
-			return "", fmt.Errorf("invalid JSON for DSL query. Please ensure it's a valid JSON object: %w", err)
+		var dslBody JSONObject
+		if err := json.Unmarshal([]byte(q.DSL), &dslBody); err != nil {
+			return "", fmt.Errorf("invalid JSON for DSL query: %w", err)
 		}
+		queryBody = dslBody
 	case q.KQL != "":
-		if queryMap, ok := queryBody["query"].(anyMap); ok {
-			queryMap["query_string"] = anyMap{
+		if queryClause, ok := queryBody["query"].(JSONObject); ok {
+			queryClause["query_string"] = JSONObject{
 				"query":            q.KQL,
 				"analyze_wildcard": true,
 			}
 		}
 	case q.Lucene != "":
-		if queryMap, ok := queryBody["query"].(anyMap); ok {
-			queryMap["query_string"] = anyMap{
+		if queryClause, ok := queryBody["query"].(JSONObject); ok {
+			queryClause["query_string"] = JSONObject{
 				"query":            q.Lucene,
 				"default_operator": "AND",
 			}
 		}
-
 	}
 
-	var tsRange anyMap
+	var tsQuery JSONObject
 	if q.From != "" || q.To != "" {
-		tsRange = make(anyMap)
+		tsRange := JSONObject{}
 		if q.From != "" {
 			tsRange["gte"] = q.From
 		}
 		if q.To != "" {
 			tsRange["lte"] = q.To
 		}
-
-	}
-	if tsRange != nil {
-		existingQuery, hasQueryKey := queryBody["query"]
-		if !hasQueryKey {
-			existingQuery = anyMap{"match_all": anyMap{}}
+		tsQuery = JSONObject{
+			"range": JSONObject{
+				"@timestamp": tsRange,
+			},
 		}
-		queryBody["query"] = anyMap{
-			"bool": anyMap{
+	}
+
+	if tsQuery != nil {
+		existingQuery, hasQuery := queryBody["query"]
+		if !hasQuery {
+			existingQuery = JSONObject{"match_all": JSONObject{}}
+		}
+		queryBody["query"] = JSONObject{
+			"bool": JSONObject{
 				"must": []any{
 					existingQuery,
-					anyMap{
-						"range": anyMap{
-							"@timestamp": tsRange,
-						},
-					},
+					tsQuery,
 				},
 			},
 		}
