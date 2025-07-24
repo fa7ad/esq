@@ -107,8 +107,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cliArgs.OutputFile, "output-file", "", "Write output to a file instead of stdout.")
 	rootCmd.PersistentFlags().StringVarP(&cliArgs.JqPath, "jq", "j", "", "Apply a jq expression to the output.")
 
-	rootCmd.MarkPersistentFlagRequired("node")
-	rootCmd.MarkPersistentFlagRequired("index")
+	_ = rootCmd.MarkPersistentFlagRequired("node")
+	_ = rootCmd.MarkPersistentFlagRequired("index")
 
 	// Bind all persistent flags to viper automatically
 	rootCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {

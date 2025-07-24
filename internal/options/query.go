@@ -6,6 +6,11 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"k8s.io/utils/ptr"
+
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/operator"
 )
 
 // QueryOptions holds query-related fields.
@@ -21,11 +26,9 @@ type QueryOptions struct {
 	Size int
 }
 
-type JSONObject = map[string]any
-
 func (q *QueryOptions) normalize() (string, error) {
-	queryBody := JSONObject{
-		"query": JSONObject{},
+	queryBody := types.SearchRequestBody{
+		Query: &types.Query{},
 	}
 
 	switch {
@@ -37,53 +40,56 @@ func (q *QueryOptions) normalize() (string, error) {
 		q.DSL = strings.TrimSpace(string(data))
 		fallthrough
 	case q.DSL != "":
-		var dslBody JSONObject
+		var dslBody types.SearchRequestBody
 		if err := json.Unmarshal([]byte(q.DSL), &dslBody); err != nil {
 			return "", fmt.Errorf("invalid JSON for DSL query: %w", err)
 		}
 		queryBody = dslBody
 	case q.KQL != "":
-		if queryClause, ok := queryBody["query"].(JSONObject); ok {
-			queryClause["query_string"] = JSONObject{
-				"query":            q.KQL,
-				"analyze_wildcard": true,
-			}
+		queryBody.Query = &types.Query{
+			QueryString: &types.QueryStringQuery{
+				Query:           q.KQL,
+				AnalyzeWildcard: ptr.To(true),
+				Lenient:         ptr.To(true),
+			},
 		}
 	case q.Lucene != "":
-		if queryClause, ok := queryBody["query"].(JSONObject); ok {
-			queryClause["query_string"] = JSONObject{
-				"query":            q.Lucene,
-				"default_operator": "AND",
-			}
+		queryBody.Query = &types.Query{
+			QueryString: &types.QueryStringQuery{
+				Query:           q.Lucene,
+				DefaultOperator: &operator.And,
+				Lenient:         ptr.To(true),
+			},
 		}
 	}
 
-	var tsQuery JSONObject
+	var tsQuery *types.Query
 	if q.From != "" || q.To != "" {
-		tsRange := JSONObject{}
+		tsRange := types.DateRangeQuery{}
 		if q.From != "" {
-			tsRange["gte"] = q.From
+			tsRange.Gte = &q.From
 		}
 		if q.To != "" {
-			tsRange["lte"] = q.To
+			tsRange.Lte = &q.To
 		}
-		tsQuery = JSONObject{
-			"range": JSONObject{
-				"@timestamp": tsRange,
+		tsQuery = &types.Query{
+			Range: map[string]types.RangeQuery{
+				"timestamp": &tsRange,
 			},
 		}
 	}
 
 	if tsQuery != nil {
-		existingQuery, hasQuery := queryBody["query"]
-		if !hasQuery {
-			existingQuery = JSONObject{"match_all": JSONObject{}}
+		existingQuery := queryBody.Query
+		isQueryEmpty := q.KQL == "" && q.DSL == "" && q.Lucene == "" && q.QueryFile == ""
+		if isQueryEmpty {
+			existingQuery = &types.Query{MatchAll: &types.MatchAllQuery{}}
 		}
-		queryBody["query"] = JSONObject{
-			"bool": JSONObject{
-				"must": []any{
-					existingQuery,
-					tsQuery,
+		queryBody.Query = &types.Query{
+			Bool: &types.BoolQuery{
+				Must: []types.Query{
+					*existingQuery,
+					*tsQuery,
 				},
 			},
 		}

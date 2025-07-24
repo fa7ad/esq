@@ -1,0 +1,68 @@
+name: Go CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint-and-unit-test:
+    name: Lint & Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.59
+      - name: Run unit tests
+        run: make test
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: lint-and-unit-test
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24' # <-- Updated version
+
+      - name: Generate random password for Elasticsearch
+        id: generate-password
+        run: echo "ES_PASS=$(openssl rand -base64 12)" >> $GITHUB_ENV
+
+      - name: Set up .env for Docker Compose
+        run: |
+          echo "ES_LOCAL_VERSION=8.14.1" >> .env
+          echo "ES_LOCAL_CONTAINER_NAME=esq-ci-es" >> .env
+          echo "ES_LOCAL_PASSWORD=${{ env.ES_PASS }}" >> .env
+          echo "ES_LOCAL_PORT=9200" >> .env
+          echo "ES_LOCAL_HEAP_INIT=1g" >> .env
+          echo "ES_LOCAL_HEAP_MAX=1g" >> .env
+        
+      - name: Start services and generate data
+        run: ./start.sh
+        env:
+          CI: true
+
+      - name: Run Integration Tests
+        run: make integration-test
+        env:
+          ES_LOCAL_PASSWORD: ${{ env.ES_PASS }}
+
+      - name: Stop services
+        if: always()
+        run: ./stop.sh
+        env:
+          CI: true

@@ -1,8 +1,13 @@
 #!/bin/sh
-# Stop script for start-local
-# More information: https://github.com/elastic/start-local
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}"
-docker compose stop
+
+if [ "${CI:-false}" = "true" ]; then
+  echo "CI environment detected. Tearing down 'test' profile..."
+  docker compose --profile test down -v --remove-orphans
+else
+  echo "Stopping 'dev' profile services..."
+  docker compose --profile dev stop
+fi

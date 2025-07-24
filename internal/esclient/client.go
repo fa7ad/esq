@@ -53,7 +53,9 @@ func (c *esClient) Search(esOpts options.ElasticOptions) (map[string]any, error)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch search failed: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	// Check for Elasticsearch-specific errors
 	if res.IsError() {

@@ -58,3 +58,6 @@ Temporary Items
 
 # Local tmp files
 .tmp/
+
+# Binary
+esq

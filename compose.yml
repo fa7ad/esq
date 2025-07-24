@@ -12,25 +12,14 @@ services:
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
       - xpack.license.self_generated.type=basic
-      - xpack.ml.use_auto_machine_memory_percent=true
       - ES_JAVA_OPTS=-Xms${ES_LOCAL_HEAP_INIT} -Xmx${ES_LOCAL_HEAP_MAX}
-      - cluster.routing.allocation.disk.watermark.low=${ES_LOCAL_DISK_SPACE_REQUIRED}
-      - cluster.routing.allocation.disk.watermark.high=${ES_LOCAL_DISK_SPACE_REQUIRED}
-      - cluster.routing.allocation.disk.watermark.flood_stage=${ES_LOCAL_DISK_SPACE_REQUIRED}
       - '_JAVA_OPTIONS=-XX:UseSVE=0'
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'curl --output /dev/null --silent --head --fail -u elastic:${ES_LOCAL_PASSWORD} http://elasticsearch:9200',
-        ]
+      test: ['CMD-SHELL', 'curl --output /dev/null --silent --head --fail -u elastic:${ES_LOCAL_PASSWORD} http://elasticsearch:9200']
       interval: 10s
       timeout: 10s
       retries: 30
+    profiles: ["test", "dev"]
 
   kibana_settings:
     depends_on:
@@ -40,37 +29,19 @@ services:
     container_name: ${KIBANA_LOCAL_SETTINGS_CONTAINER_NAME}
     restart: 'no'
     command: >
-      bash -c '
-        echo "Setup the kibana_system password";
-        start_time=$$(date +%s);
-        timeout=60;
-        until curl -s -u "elastic:${ES_LOCAL_PASSWORD}" -X POST http://elasticsearch:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_LOCAL_PASSWORD}\"}" -H "Content-Type: application/json" | grep -q "^{}"; do
-          if [ $$(($$(date +%s) - $$start_time)) -ge $$timeout ]; then
-            echo "Error: Elasticsearch timeout";
-            exit 1;
-          fi;
-          sleep 2;
-        done;
-      '
+      bash -c 'until curl -s -u "elastic:${ES_LOCAL_PASSWORD}" -X POST http://elasticsearch:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_LOCAL_PASSWORD}\"}" -H "Content-Type: application/json" | grep -q "^{}"; do sleep 2; done;'
+    profiles: ["dev"]
 
   data_generator:
     container_name: ${ES_LOCAL_CONTAINER_NAME}-makelogs
     image: node:22-alpine
     command: >
-      sh -c '
-        echo "Starting makelogs data generation..." && \
-        npm_config_loglevel=error npx @elastic/makelogs --url "http://elastic:${ES_LOCAL_PASSWORD}@elasticsearch:9200" \
-          --reset \
-          --count 10000 \
-          --days 5 \
-          --indexPrefix "makelogs-" \
-          --indexInterval "daily" && \
-        echo "Makelogs data generation complete.";
-      '
+      sh -c 'npm_config_loglevel=error npx @elastic/makelogs --url "http://elastic:${ES_LOCAL_PASSWORD}@elasticsearch:9200" --reset --count 10000 --days 5 --indexPrefix "makelogs-"'
     depends_on:
-      kibana_settings:
-        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
     restart: 'no'
+    profiles: ["test", "dev"]
 
   kibana:
     depends_on:
@@ -87,26 +58,10 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=${KIBANA_LOCAL_PASSWORD}
-      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${KIBANA_ENCRYPTION_KEY}
-      - ELASTICSEARCH_PUBLICBASEURL=http://localhost:${ES_LOCAL_PORT}
-      - TELEMETRY_OPTIN=false
-    healthcheck:
-      test: ['CMD-SHELL', "curl -s -I http://kibana:5601 | grep -q 'HTTP/1.1 302 Found'"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
+    profiles: ["dev"]
 
 volumes:
   dev-elasticsearch:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./.tmp/es
-
   dev-kibana:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./.tmp/kibana
