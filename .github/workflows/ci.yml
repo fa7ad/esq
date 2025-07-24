@@ -22,6 +22,8 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.59
+          args: --timeout=3m
+
       - name: Run unit tests
         run: make test
 
@@ -36,7 +38,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24' # <-- Updated version
+          go-version: '1.24'
 
       - name: Generate random password for Elasticsearch
         id: generate-password
