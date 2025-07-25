@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "${SCRIPT_DIR}"
+cd "${SCRIPT_DIR}/.."
 
 PROJECT_NAME=${COMPOSE_PROJECT_NAME:-$(basename "$SCRIPT_DIR")}
 VOLUME_NAME="${PROJECT_NAME}_dev-elasticsearch"

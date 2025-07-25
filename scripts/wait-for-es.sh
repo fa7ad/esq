@@ -7,7 +7,6 @@ if [ -z "${ES_LOCAL_PASSWORD}" ]; then
   exit 1
 fi
 
-# 1. Wait for the Elasticsearch API to become available.
 until curl -s -u "elastic:${ES_LOCAL_PASSWORD}" "http://localhost:9200" >/dev/null; do
   echo "Waiting for Elasticsearch API at http://localhost:9200..."
   sleep 5
@@ -15,7 +14,6 @@ done
 echo "✅ Elasticsearch API is up!"
 
 
-# 2. Wait for the data from makelogs to be indexed and searchable.
 echo "⏳ Waiting for data to be indexed in makelogs-*..."
 retries=30
 count=0

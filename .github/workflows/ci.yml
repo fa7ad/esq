@@ -42,13 +42,13 @@ jobs:
 
       - name: Start services and Run Integration Tests
         run: |
-          ./start.sh
+          ./scripts/start.sh
           make integration-test
         env:
           CI: true
 
       - name: Stop services
         if: always()
-        run: ./stop.sh
+        run: ./scripts/stop.sh
         env:
           CI: true

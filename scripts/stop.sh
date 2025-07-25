@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "${SCRIPT_DIR}"
+cd "${SCRIPT_DIR}/.."
 
 if [ "${CI:-false}" = "true" ]; then
   echo "CI environment detected. Tearing down 'test' profile..."

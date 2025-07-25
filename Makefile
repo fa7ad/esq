@@ -33,14 +33,14 @@ test:
 ## integration-test: Build the binary and run integration tests.
 integration-test: build
 	@echo "⏳ Waiting for Elasticsearch to be ready..."
-	@./wait-for-es.sh
+	@./scripts/wait-for-es.sh
 	@echo "🚀 Running integration tests..."
 	@go test -v -tags=integration ./...
 
 ## start-dev: Start the docker containers (Elasticsearch and Kibana).
 start-dev:
-	@./start.sh
+	@./scripts/start.sh
 
 ## stop-dev: Stop the docker containers
 stop-dev:
-	@./stop.sh
+	@./scripts/stop.sh
