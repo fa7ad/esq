@@ -40,19 +40,6 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Generate random password for Elasticsearch
-        id: generate-password
-        run: echo "ES_PASS=$(openssl rand -base64 12)" >> $GITHUB_ENV
-
-      - name: Set up .env for Docker Compose
-        run: |
-          echo "ES_LOCAL_VERSION=8.14.1" >> .env
-          echo "ES_LOCAL_CONTAINER_NAME=esq-ci-es" >> .env
-          echo "ES_LOCAL_PASSWORD=${{ env.ES_PASS }}" >> .env
-          echo "ES_LOCAL_PORT=9200" >> .env
-          echo "ES_LOCAL_HEAP_INIT=1g" >> .env
-          echo "ES_LOCAL_HEAP_MAX=1g" >> .env
-        
       - name: Start services and generate data
         run: ./start.sh
         env:
@@ -60,8 +47,6 @@ jobs:
 
       - name: Run Integration Tests
         run: make integration-test
-        env:
-          ES_LOCAL_PASSWORD: ${{ env.ES_PASS }}
 
       - name: Stop services
         if: always()
