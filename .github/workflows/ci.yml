@@ -19,9 +19,9 @@ jobs:
           go-version: '1.24'
 
       - name: Run linter
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.59
+          version: latest
           args: --timeout=3m
 
       - name: Run unit tests
