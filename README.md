@@ -4,19 +4,19 @@
 
 ## ✨ Features
 
-  * **Flexible Querying**: Use the query language you're most comfortable with.
-      * Kibana Query Language (**KQL**) via `--kql`
-      * Lucene query syntax via `--lucene`
-      * Full Elasticsearch Query **DSL** via `--dsl` or from a file with `--query-file`
-  * **Time-Range Filtering**: Easily narrow your search to a specific time window using `--from` and `--to`.
-  * **Powerful Output Processing**:
-      * Format results as **JSON** or **text**.
-      * Apply **`jq` expressions** directly to the output to reshape the JSON data.
-      * Save results directly to a file.
-  * **Flexible Configuration**: Configure `esq` via command-line flags, environment variables (e.g., `ESQ_NODE`), or a YAML config file.
-  * **Simple Authentication**: Connect to secure clusters using an **API Key** or **Username/Password**.
+- **Flexible Querying**: Use the query language you're most comfortable with.
+  - Kibana Query Language (**KQL**) via `--kql`
+  - Lucene query syntax via `--lucene`
+  - Full Elasticsearch Query **DSL** via `--dsl` or from a file with `--query-file`
+- **Time-Range Filtering**: Easily narrow your search to a specific time window using `--from` and `--to`.
+- **Powerful Output Processing**:
+  - Format results as **JSON** or **text**.
+  - Apply **`jq` expressions** directly to the output to reshape the JSON data.
+  - Save results directly to a file.
+- **Flexible Configuration**: Configure `esq` via command-line flags, environment variables (e.g., `ESQ_NODE`), or a YAML config file.
+- **Simple Authentication**: Connect to secure clusters using an **API Key** or **Username/Password**.
 
------
+---
 
 ## 🚀 Installation
 
@@ -34,24 +34,62 @@ go install github.com/fa7ad/esq/cmd/esq@latest
 2.  **Environment variables** (e.g., `export ESQ_NODE=...`)
 3.  **Configuration file**
 
-By default, `esq` looks for a configuration file at `$HOME/.esq.yaml`.
+By default, `esq` looks for a configuration file at `$HOME/.esq.yaml`. It is also possible to specify a custom config file location using the `--config` flag.
 
 ### Example `.esq.yaml`
 
 ```yaml
-node: "http://localhost:9200"
-index: "my-logs-*"
-output: "json"
+node: 'http://localhost:9200'
+index: 'my-logs-*'
+output: 'json'
 # api-key: "your_base64_api_key"
 # username: "elastic"
 # password: "changeme"
 ```
 
------
+---
 
 ## 💡 Usage
 
 The only required flags are `--node` and `--index`. You must also provide one query flag: `--kql`, `--lucene`, `--dsl`, or `--query-file`.
+
+### All Flags
+
+```
+A CLI tool to query Elasticsearch.
+
+esq can be configured using command-line flags, environment variables (prefixed with ESQ_),
+or a configuration file (e.g., $HOME/.esq.yaml).
+
+Usage:
+  esq [flags]
+
+Flags:
+  -i, --index string         Elasticsearch index pattern.
+  -n, --node string          Elasticsearch node URL.
+      --api-key string       Elasticsearch API Key for authentication.
+      --username string      Username for basic authentication.
+      --password string      Password for basic authentication.
+      --config string        config file (default is $HOME/.esq.yaml)
+
+  -f, --query-file string    Path to a file containing the Elasticsearch Query DSL (JSON).
+      --dsl string           Elasticsearch Query DSL JSON string.
+      --kql string           Kibana Query Language (KQL) query string.
+      --lucene string        Lucene query string.
+
+      --from string          Start time (ISO8601 or ES-relative like 'now-1d').
+      --to string            End time (ISO8601 or ES-relative like 'now').
+
+  -j, --jq string            Apply a jq expression to the output.
+
+  -s, --size int             Number of results to return. (default 100)
+
+  -o, --output string        Output format (choices: json, text) (default "text")
+      --output-file string   Write output to a file instead of stdout.
+
+  -h, --help                 help for esq
+  -v, --version              version for esq
+```
 
 ### Examples
 
@@ -94,36 +132,4 @@ Or use username and password, which can also be set via `ESQ_USERNAME` and `ESQ_
 esq -n https://secure-es:9200 -i audit-logs \
   --username elastic --password changeme \
   --kql "event.action:login_failed"
-```
-
-### All Flags
-
-```
-A CLI tool to query Elasticsearch.
-
-esq can be configured using command-line flags, environment variables (prefixed with ESQ_),
-or a configuration file (e.g., $HOME/.esq.yaml).
-
-Usage:
-  esq [flags]
-
-Flags:
-      --api-key string       Elasticsearch API Key for authentication.
-      --config string        config file (default is $HOME/.esq.yaml)
-      --dsl string           Elasticsearch Query DSL JSON string.
-  -f, --query-file string    Path to a file containing the Elasticsearch Query DSL (JSON).
-      --from string          Start time (ISO8601 or ES-relative like 'now-1d').
-  -h, --help                 help for esq
-  -i, --index string         Elasticsearch index pattern.
-  -j, --jq string            Apply a jq expression to the output.
-      --kql string           Kibana Query Language (KQL) query string.
-      --lucene string        Lucene query string.
-  -n, --node string          Elasticsearch node URL.
-  -o, --output string        Output format (choices: json, text) (default "text")
-      --output-file string   Write output to a file instead of stdout.
-      --password string      Password for basic authentication.
-  -s, --size int             Number of results to return. (default 100)
-      --to string            End time (ISO8601 or ES-relative like 'now').
-      --username string      Username for basic authentication.
-  -v, --version              version for esq
 ```
