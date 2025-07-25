@@ -32,6 +32,8 @@ test:
 
 ## integration-test: Build the binary and run integration tests.
 integration-test: build
+	@echo "⏳ Waiting for Elasticsearch to be ready..."
+	@./wait-for-es.sh
 	@echo "🚀 Running integration tests..."
 	@go test -v -tags=integration ./...
 

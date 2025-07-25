@@ -2,9 +2,9 @@ name: Go CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
-    branches: [ "main" ]
+    branches: ['main']
 
 jobs:
   lint-and-unit-test:
@@ -40,13 +40,12 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Start services and generate data
-        run: ./start.sh
+      - name: Start services and Run Integration Tests
+        run: |
+          ./start.sh
+          make integration-test
         env:
           CI: true
-
-      - name: Run Integration Tests
-        run: make integration-test
 
       - name: Stop services
         if: always()
