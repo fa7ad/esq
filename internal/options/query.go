@@ -26,6 +26,7 @@ type QueryOptions struct {
 	Size int
 }
 
+// normalize normalizes the query options into a single DSL query.
 func (q *QueryOptions) normalize() (string, error) {
 	queryBody := types.SearchRequestBody{
 		Query: &types.Query{},
@@ -103,6 +104,7 @@ func (q *QueryOptions) normalize() (string, error) {
 	return string(jsonData), nil
 }
 
+// ToQueryBody converts the query options into a query body reader.
 func (q *QueryOptions) ToQueryBody() (io.Reader, error) {
 	dsl, err := q.normalize()
 	if err != nil {

@@ -9,10 +9,12 @@ import (
 	"github.com/fa7ad/esq/internal/options"
 )
 
+// esClient represents an Elasticsearch client.
 type esClient struct {
 	client *elasticsearch.Client
 }
 
+// NewElasticsearchClient creates a new Elasticsearch client.
 func NewElasticsearchClient(authOpts options.AuthOptions, opts options.ElasticOptions) (*esClient, error) {
 	cfg := elasticsearch.Config{
 		Addresses: []string{opts.Node},
@@ -53,9 +55,7 @@ func (c *esClient) Search(esOpts options.ElasticOptions) (map[string]any, error)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch search failed: %w", err)
 	}
-	defer func() {
-		_ = res.Body.Close()
-	}()
+	defer res.Body.Close()
 
 	// Check for Elasticsearch-specific errors
 	if res.IsError() {

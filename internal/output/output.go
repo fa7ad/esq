@@ -36,6 +36,7 @@ func ApplyJQ(input any, jqExpr string) (any, error) {
 	return results, nil
 }
 
+// SerializeResults serializes the given results into the specified format.
 func SerializeResults(results any, format string) ([]byte, error) {
 	switch format {
 	case "json":
@@ -47,6 +48,7 @@ func SerializeResults(results any, format string) ([]byte, error) {
 	}
 }
 
+// WriteToFile writes the serialized data to the specified output file or stdout.
 func WriteToFile(serialized []byte, outputFile string) error {
 	switch outputFile {
 	case "*stdout":

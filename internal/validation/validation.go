@@ -11,6 +11,7 @@ import (
 	"github.com/itchyny/gojq"
 )
 
+// ValidateCliArgs validates the command-line arguments.
 func ValidateCliArgs(args options.CliArgs) error {
 	err := ValidateElasticOptions(args.ElasticOptions)
 	if err != nil {
@@ -34,6 +35,7 @@ func ValidateCliArgs(args options.CliArgs) error {
 	return nil
 }
 
+// getKeys returns the keys of a map as a slice.
 func getKeys(m map[string]bool) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -42,6 +44,7 @@ func getKeys(m map[string]bool) []string {
 	return keys
 }
 
+// ValidateQueryOptions validates the query options.
 func ValidateQueryOptions(queryOptions options.QueryOptions) error {
 	if queryOptions.KQL == "" && queryOptions.DSL == "" && queryOptions.Lucene == "" && queryOptions.QueryFile == "" {
 		return fmt.Errorf("one of --kql, --dsl, --lucene, or --query-file must be provided")
@@ -81,6 +84,7 @@ func ValidateQueryOptions(queryOptions options.QueryOptions) error {
 	return nil
 }
 
+// ValidateOutputOptions validates the output options.
 func ValidateOutputOptions(outputOptions options.OutputOptions) error {
 	// check if format is valid
 	validOutputs := map[string]bool{"json": true, "text": true}
@@ -105,6 +109,7 @@ func ValidateOutputOptions(outputOptions options.OutputOptions) error {
 	return nil
 }
 
+// ValidateAuthOptions validates the authentication options.
 func ValidateAuthOptions(authOptions options.AuthOptions) error {
 	if authOptions.APIKey != "" && (authOptions.Username != "" || authOptions.Password != "") {
 		return fmt.Errorf("--api-key cannot be used with --username or --password")
@@ -117,6 +122,7 @@ func ValidateAuthOptions(authOptions options.AuthOptions) error {
 	return nil
 }
 
+// ValidateElasticOptions validates the Elasticsearch options.
 func ValidateElasticOptions(elasticOptions options.ElasticOptions) error {
 	if elasticOptions.Node == "" {
 		return fmt.Errorf("--node must be provided")

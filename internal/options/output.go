@@ -7,13 +7,13 @@ import (
 )
 
 // OutputOptions holds output-related fields.
-// It includes output format, output file, and jq path.
 type OutputOptions struct {
 	Output     string
 	OutputFile string
 	JqPath     string
 }
 
+// processResults applies the jq expression to the results if specified.
 func (o *OutputOptions) processResults(results any) (any, error) {
 	if o.JqPath == "" {
 		return results, nil
@@ -25,6 +25,7 @@ func (o *OutputOptions) processResults(results any) (any, error) {
 	return parsed, nil
 }
 
+// OutputResults processes and outputs the results to the specified format and file.
 func (o *OutputOptions) OutputResults(results any) error {
 	processed, err := o.processResults(results)
 	if err != nil {
