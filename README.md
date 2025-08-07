@@ -23,7 +23,7 @@
 You can install `esq` using `go`:
 
 ```sh
-go install github.com/fa7ad/esq/cmd/esq@latest
+go install github.com/fa7ad/esq@latest
 ```
 
 ## ⚙️ Configuration
